@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("arraydumper", "for arraydumper support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("arraydumper", "enable arraydumper support", "no");
+
+if (PHP_ARRAYDUMPER != "no") {
+	EXTENSION("arraydumper", "arraydumper.c", PHP_EXTNAME_SHARED, "/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+}
+
