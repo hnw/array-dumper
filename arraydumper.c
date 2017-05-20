@@ -29,6 +29,10 @@
 
 #include "standard/php_var.h"
 
+#ifndef HT_IS_PACKED
+#define HT_IS_PACKED(ht) (((ht)->u.flags & HASH_FLAG_PACKED) != 0)
+#endif
+
 /* True global resources - no need for thread safety here */
 static int le_arraydumper;
 
