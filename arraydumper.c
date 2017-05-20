@@ -27,9 +27,7 @@
 #include "ext/standard/info.h"
 #include "php_arraydumper.h"
 
-/* If you declare any globals in php_arraydumper.h uncomment this:
-ZEND_DECLARE_MODULE_GLOBALS(arraydumper)
-*/
+#include "standard/php_var.h"
 
 /* True global resources - no need for thread safety here */
 static int le_arraydumper;
@@ -72,6 +70,18 @@ PHP_FUNCTION(is_packed_array)
 }
 /* }}} */
 
+/* {{{ proto int symbol_table_dump(void)
+   Dumps current symbol table */
+PHP_FUNCTION(symbol_table_dump)
+{
+	zval tmp;
+	zend_array *symbol_table;
+
+	symbol_table = zend_rebuild_symbol_table();
+	ZVAL_ARR(&tmp, symbol_table);
+	php_var_dump(&tmp, 0);
+}
+/* }}} */
 
 /* {{{ php_arraydumper_init_globals
  */
@@ -146,7 +156,8 @@ PHP_MINFO_FUNCTION(arraydumper)
  * Every user visible function must have an entry in arraydumper_functions[].
  */
 const zend_function_entry arraydumper_functions[] = {
-	PHP_FE(is_packed_array,	NULL)
+	PHP_FE(is_packed_array, NULL)
+	PHP_FE(symbol_table_dump, NULL)
 	PHP_FE_END	/* Must be the last line in arraydumper_functions[] */
 };
 /* }}} */
