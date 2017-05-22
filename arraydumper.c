@@ -29,14 +29,118 @@
 
 #include "standard/php_var.h"
 
+/* True global resources - no need for thread safety here */
+static int le_arraydumper;
+
 #ifndef HT_IS_PACKED
 #define HT_IS_PACKED(ht) (((ht)->u.flags & HASH_FLAG_PACKED) != 0)
 #endif
 
-/* True global resources - no need for thread safety here */
-static int le_arraydumper;
-
 #define Z_IS_PACKED_ARRAY(zp) _z_is_packed_array(zp)
+
+#define COMMON (is_ref ? "&" : "")
+
+static void php_array_element_dump(zval *zv, zend_ulong index, zend_string *key, int level) /* {{{ */
+{
+	if (key == NULL) { /* numeric key */
+		php_printf("%*c[" ZEND_LONG_FMT "]=>\n", level + 1, ' ', index);
+	} else { /* string key */
+		php_printf("%*c[\"", level + 1, ' ');
+		PHPWRITE(ZSTR_VAL(key), ZSTR_LEN(key));
+		php_printf("\", hash=" ZEND_XLONG_FMT "]=>\n", index);
+	}
+	php_var_dump(zv, level + 2);
+}
+/* }}} */
+
+PHPAPI void php_array_dump(zval *struc, int level) /* {{{ */
+{
+	HashTable *myht;
+	int is_temp;
+	int is_ref = 0;
+	zend_ulong num;
+	zend_string *key;
+	zval *val;
+	uint32_t count;
+
+	if (Z_TYPE_P(struc) != IS_ARRAY) {
+		php_var_dump(struc, level);
+		return;
+	}
+	if (level > 1) {
+		php_printf("%*c", level-1, ' ');
+	}
+	myht = Z_ARRVAL_P(struc);
+	if (level > 1 && ZEND_HASH_APPLY_PROTECTION(myht) && ++myht->u.v.nApplyCount > 1) {
+		PUTS("*RECURSION*\n");
+		--myht->u.v.nApplyCount;
+		return;
+	}
+	count = zend_array_count(myht);
+	php_printf("%sarray(%d)\n", COMMON, count);
+	{
+		int is_first = 1;
+		php_printf("%*c", level-1, ' ');
+		PUTS("flag = ");
+		if ((myht->u.flags & HASH_FLAG_PERSISTENT) != 0) {
+			if (!is_first) {
+				PUTS(" | ");
+			}
+			is_first = 0;
+			PUTS("HASH_FLAG_PERSISTENT");
+		}
+		if ((myht->u.flags & HASH_FLAG_PACKED) != 0) {
+			if (!is_first) {
+				PUTS(" | ");
+			}
+			is_first = 0;
+			PUTS("HASH_FLAG_PACKED");
+		}
+		if ((myht->u.flags & HASH_FLAG_INITIALIZED) != 0) {
+			if (!is_first) {
+				PUTS(" | ");
+			}
+			is_first = 0;
+			PUTS("HASH_FLAG_INITIALIZED");
+		}
+		if ((myht->u.flags & HASH_FLAG_STATIC_KEYS) != 0) {
+			if (!is_first) {
+				PUTS(" | ");
+			}
+			is_first = 0;
+			PUTS("HASH_FLAG_STATIC_KEYS");
+		}
+		if ((myht->u.flags & HASH_FLAG_HAS_EMPTY_IND) != 0) {
+			if (!is_first) {
+				PUTS(" | ");
+			}
+			is_first = 0;
+			PUTS("HASH_FLAG_HAS_EMPTY_IND");
+		}
+		PUTS("\n");
+	}
+	php_printf(" nTableMask = %x\n", myht->nTableMask);
+	php_printf(" arData = %p\n", myht->arData);
+	php_printf(" nNumUsed = %d\n", myht->nNumUsed);
+	php_printf(" nNumOfElements = %d\n", myht->nNumOfElements);
+	php_printf(" nTableSize = %d\n", myht->nTableSize);
+	php_printf(" nInternalPointer = %d\n", myht->nInternalPointer);
+	php_printf(" nNextFreeElement = %d\n", myht->nNextFreeElement);
+	PUTS("{\n");
+	is_temp = 0;
+
+	ZEND_HASH_FOREACH_KEY_VAL_IND(myht, num, key, val) {
+		php_array_element_dump(val, num, key, level);
+	} ZEND_HASH_FOREACH_END();
+	if (level > 1 && ZEND_HASH_APPLY_PROTECTION(myht)) {
+		--myht->u.v.nApplyCount;
+	}
+	if (level > 1) {
+		php_printf("%*c", level-1, ' ');
+	}
+	PUTS("}\n");
+}
+/* }}} */
 
 static inline int _z_is_packed_array(zval *zp)
 {
@@ -58,6 +162,22 @@ PHP_INI_BEGIN()
     STD_PHP_INI_ENTRY("arraydumper.global_string", "foobar", PHP_INI_ALL, OnUpdateString, global_string, zend_arraydumper_globals, arraydumper_globals)
 PHP_INI_END()
 */
+/* }}} */
+
+/* {{{ proto void array_dump(mixed var) */
+PHP_FUNCTION(array_dump)
+{
+	zval *args;
+	int argc;
+	int i;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "+", &args, &argc) == FAILURE) {
+		return;
+	}
+	for (i = 0; i < argc; i++) {
+		php_array_dump(&args[i], 1);
+	}
+}
 /* }}} */
 
 /* {{{ proto bool is_packed_array(mixed var) */
@@ -160,6 +280,7 @@ PHP_MINFO_FUNCTION(arraydumper)
  * Every user visible function must have an entry in arraydumper_functions[].
  */
 const zend_function_entry arraydumper_functions[] = {
+	PHP_FE(array_dump,      NULL)
 	PHP_FE(is_packed_array, NULL)
 	PHP_FE(symbol_table_dump, NULL)
 	PHP_FE_END	/* Must be the last line in arraydumper_functions[] */
