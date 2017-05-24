@@ -43,7 +43,8 @@ static int le_arraydumper;
 static void php_array_element_dump(zval *zv, zend_ulong index, zend_string *key, int level) /* {{{ */
 {
 	if (key == NULL) { /* numeric key */
-		php_printf("%*c[" ZEND_LONG_FMT "]=>\n", level + 1, ' ', index);
+		php_printf("%*c[" ZEND_LONG_FMT, level + 1, ' ', index);
+		php_printf(", zv=%p]=>\n", zv);
 	} else { /* string key */
 		php_printf("%*c[\"", level + 1, ' ');
 		PHPWRITE(ZSTR_VAL(key), ZSTR_LEN(key));
